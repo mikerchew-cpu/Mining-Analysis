@@ -427,7 +427,7 @@ function renderResults(data) {
     <div class="stat-card">
       <div class="label">ESDM Status</div>
       <div class="value"><span class="badge ${esdm.status === 'Active' ? 'badge-success' : esdm.status === 'Exploration' ? 'badge-info' : 'badge-warning'}">${esdm.status}</span></div>
-      <div class="sub">Validity: <span class="badge ${esdm.validity === 'Valid' ? 'badge-success' : esdm.validity === 'Under Review' ? 'badge-warning' : 'badge-danger'}">${esdm.validity}</span></div>
+      <div class="sub">Validity: <span class="badge ${esdm.validity === 'Valid' ? 'badge-success' : esdm.validity === 'Under Review' ? 'badge-warning' : 'badge-danger'}">${esdm.validity}</span> · <a href="${esdmSearchUrl(mine.name)}" target="_blank" style="color:var(--primary-light);font-size:0.75rem;">ESDM ↗</a></div>
     </div>
     <div class="stat-card">
       <div class="label">Resources / Reserves</div>
@@ -460,11 +460,21 @@ function renderResults(data) {
   renderAIChat();
 }
 
+function esdmSearchUrl(query) {
+  return 'https://www.google.com/search?q=' + encodeURIComponent('site:esdm.go.id ' + query);
+}
+
 function renderESDM(mine, esdm) {
   const el = document.getElementById('tab-esdm');
   el.innerHTML = `
     <div class="card">
-      <div class="card-header"><h3>🏛️ ESDM Mine Profile</h3><span class="badge badge-info">Verified ${new Date(esdm.verifiedAt).toLocaleDateString()}</span></div>
+      <div class="card-header">
+        <h3>🏛️ ESDM Mine Profile</h3>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+          <span class="badge badge-info">Verified ${new Date(esdm.verifiedAt).toLocaleDateString()}</span>
+          <a href="${esdmSearchUrl(mine.name + ' ' + mine.company)}" target="_blank" class="btn btn-small btn-secondary" style="text-decoration:none;font-size:0.75rem;">🔍 Check ESDM</a>
+        </div>
+      </div>
       <div class="card-body">
         <div class="info-grid">
           <div class="info-item"><div class="ilabel">Mine Name</div><div class="ivalue">${mine.name}</div></div>
@@ -479,6 +489,15 @@ function renderESDM(mine, esdm) {
           <div class="info-item"><div class="ilabel">Commodity</div><div class="ivalue"><span class="tag ${getCommodityClass(mine.commodity)}">${mine.commodity || 'N/A'}</span></div></div>
         </div>
       </div>
+    </div>
+    <div class="card" style="text-align:center;padding:0.75rem;">
+      <p style="font-size:0.85rem;color:var(--text-light);margin:0;">
+        <a href="${esdmSearchUrl(mine.name + ' IUP ' + esdm.iupNumber)}" target="_blank" style="color:var(--primary-light);">🔗 Search ESDM database for "${mine.name}"</a>
+        &nbsp;·&nbsp;
+        <a href="https://geoportal.esdm.go.id/minerba/" target="_blank" style="color:var(--primary-light);">🗺️ Minerba One Data Portal</a>
+        &nbsp;·&nbsp;
+        <a href="https://www.esdm.go.id" target="_blank" style="color:var(--primary-light);">🌐 esdm.go.id</a>
+      </p>
     </div>
     <div class="card">
       <div class="card-header"><h3>📋 Mine Description</h3></div>
