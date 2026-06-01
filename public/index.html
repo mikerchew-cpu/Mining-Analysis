@@ -98,7 +98,11 @@
       </div>
 
       <div class="tab-content" id="tab-browse">
-        <p style="color:var(--text-light);margin-bottom:1rem;">Select a mine from the database to analyze:</p>
+        <p style="color:var(--text-light);margin-bottom:1rem;">Search the mine database to analyze:</p>
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+          <input type="text" id="browseSearch" placeholder="Search by name, company, or commodity..." style="flex:1;padding:0.6rem 1rem;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:0.9rem;" oninput="filterBrowseMines()">
+          <button class="btn btn-primary" onclick="filterBrowseMines()">🔍 Search</button>
+        </div>
         <div id="browseList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;"></div>
       </div>
     </div>

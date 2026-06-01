@@ -33,34 +33,59 @@ function initTabs() {
   });
 }
 
+let allMines = [];
+
 async function loadMineList() {
   try {
     const resp = await fetch('/api/mines');
     const data = await resp.json();
+    allMines = data.mines || [];
     const list = document.getElementById('mineList');
-    const browse = document.getElementById('browseList');
     list.innerHTML = '';
-    browse.innerHTML = '';
-    (data.mines || []).forEach(m => {
+    allMines.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m.name;
       list.appendChild(opt);
-      const card = document.createElement('div');
-      card.className = 'peer-card';
-      card.style.cursor = 'pointer';
-      card.innerHTML = `
-        <div class="pname">${m.name}</div>
-        <div class="pdetail">${m.company} · ${m.commodity}</div>
-        <div class="pdetail" style="font-size:0.75rem;">${m.province} · <span class="badge ${m.status === 'Active' ? 'badge-success' : m.status === 'Exploration' ? 'badge-info' : 'badge-warning'}">${m.status}</span></div>
-      `;
-      card.onclick = () => {
-        document.getElementById('mineName').value = m.name;
-        document.querySelector('[data-tab="quick"]').click();
-        analyzeMine();
-      };
-      browse.appendChild(card);
     });
+    renderBrowseMines(allMines);
   } catch (e) { console.error('Failed to load mine list', e); }
+}
+
+function renderBrowseMines(mines) {
+  const browse = document.getElementById('browseList');
+  browse.innerHTML = '';
+  if (mines.length === 0) {
+    browse.innerHTML = '<p style="color:var(--text-light);grid-column:1/-1;">No mines match your search.</p>';
+    return;
+  }
+  mines.forEach(m => {
+    const card = document.createElement('div');
+    card.className = 'peer-card';
+    card.style.cursor = 'pointer';
+    card.innerHTML = `
+      <div class="pname">${m.name}</div>
+      <div class="pdetail">${m.company} · ${m.commodity}</div>
+      <div class="pdetail" style="font-size:0.75rem;">${m.province} · <span class="badge ${m.status === 'Active' ? 'badge-success' : m.status === 'Exploration' ? 'badge-info' : 'badge-warning'}">${m.status}</span></div>
+    `;
+    card.onclick = () => {
+      document.getElementById('mineName').value = m.name;
+      document.querySelector('[data-tab="quick"]').click();
+      analyzeMine();
+    };
+    browse.appendChild(card);
+  });
+}
+
+function filterBrowseMines() {
+  const q = document.getElementById('browseSearch').value.trim().toLowerCase();
+  if (!q) { renderBrowseMines(allMines); return; }
+  const filtered = allMines.filter(m =>
+    m.name.toLowerCase().includes(q) ||
+    (m.company || '').toLowerCase().includes(q) ||
+    (m.commodity || '').toLowerCase().includes(q) ||
+    (m.province || '').toLowerCase().includes(q)
+  );
+  renderBrowseMines(filtered);
 }
 
 async function loadProviders() {
