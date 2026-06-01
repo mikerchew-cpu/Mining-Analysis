@@ -11,12 +11,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const isVercel = process.env.VERCEL === '1';
+
+const publicDir = isVercel
+  ? path.join(__dirname, '..', 'public')
+  : path.join(__dirname, 'public');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(publicDir));
 
-const upload = multer({ dest: path.join(__dirname, 'uploads') });
+const storage = isVercel
+  ? multer.memoryStorage()
+  : multer.diskStorage({ destination: (r, f, cb) => cb(null, path.join(__dirname, 'uploads')) });
+const upload = multer({ storage });
 
 function calculateMiningCost(mine) {
   const dieselPricePerLiter = 6800;
@@ -444,7 +452,11 @@ app.post('/api/deepseek-query', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Mine Analysis App running on http://localhost:${PORT}`);
-  console.log(`DeepSeek API: ${DEEPSEEK_API_KEY ? 'Configured' : 'NOT configured (using local analysis)'}`);
-});
+if (!isVercel) {
+  app.listen(PORT, () => {
+    console.log(`Mine Analysis App running on http://localhost:${PORT}`);
+    console.log(`DeepSeek API: ${DEEPSEEK_API_KEY ? 'Configured' : 'NOT configured (using local analysis)'}`);
+  });
+}
+
+module.exports = app;
