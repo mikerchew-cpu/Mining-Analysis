@@ -142,13 +142,13 @@ As a Senior Geologist at PT Vale Indonesia with 30 years of experience, please p
 - Diesel Price: Rp ${cost.dieselPricePerLiterIDR.toLocaleString()}/liter
 
 **VALUATION:**
-- Implied EV from Resource: $${valuation.impliedEvFromResource.toLocaleString()}
-- Implied EV from Reserve: $${valuation.impliedEvFromReserve.toLocaleString()}
-- Peer Avg EV/Resource Tonne: $${peer.avgEvPerTonneResource}
-- Peer Avg EV/Reserve Tonne: $${peer.avgEvPerTonneReserve}
+- Implied EV from Resource: ${valuation ? '$' + valuation.impliedEvFromResource.toLocaleString() : 'N/A'}
+- Implied EV from Reserve: ${valuation ? '$' + valuation.impliedEvFromReserve.toLocaleString() : 'N/A'}
+- Peer Avg EV/Resource Tonne: ${peer ? '$' + peer.avgEvPerTonneResource : 'N/A'}
+- Peer Avg EV/Reserve Tonne: ${peer ? '$' + peer.avgEvPerTonneReserve : 'N/A'}
 
 **PEER CONTEXT:**
-${peer.peers.slice(0, 5).map(p => `- ${p.name}: ${p.commodity}, Margin ${p.marginPct}%`).join('\n')}
+${peer && peer.peers ? peer.peers.slice(0, 5).map(p => `- ${p.name}: ${p.commodity}, Margin ${p.marginPct}%`).join('\n') : 'N/A'}
 
 **COMMODITY PRICE:**
 ${JSON.stringify(getCommodityPrice(mine.commodity), null, 2)}
@@ -275,14 +275,14 @@ The asset sits at a ${costPerTonneUSD < 25 ? 'strong low-cost' : costPerTonneUSD
 
 ## 3. VALUATION & PEER COMPARISON
 
-**Peer Group:** ${peer.peers.slice(0, 3).map(p => p.name).join(', ')}
-**Industry Avg EV/Resource Tonne:** $${peer.avgEvPerTonneResource.toFixed(1)}
-**Industry Avg EV/Reserve Tonne:** $${peer.avgEvPerTonneReserve.toFixed(1)}
+**Peer Group:** ${peer && peer.peers ? peer.peers.slice(0, 3).map(p => p.name).join(', ') : 'N/A'}
+**Industry Avg EV/Resource Tonne:** ${peer ? '$' + peer.avgEvPerTonneResource.toFixed(1) : 'N/A'}
+**Industry Avg EV/Reserve Tonne:** ${peer ? '$' + peer.avgEvPerTonneReserve.toFixed(1) : 'N/A'}
 
 **Implied Valuation:**
-- From Resource: $${(valuation.impliedEvFromResource / 1e6).toFixed(0)}M
-- From Reserve: $${(valuation.impliedEvFromReserve / 1e6).toFixed(0)}M
-- Average: $${(valuation.avgImpliedEV / 1e6).toFixed(0)}M
+- From Resource: ${valuation ? '$' + (valuation.impliedEvFromResource / 1e6).toFixed(0) + 'M' : 'N/A'}
+- From Reserve: ${valuation ? '$' + (valuation.impliedEvFromReserve / 1e6).toFixed(0) + 'M' : 'N/A'}
+- Average: ${valuation ? '$' + (valuation.avgImpliedEV / 1e6).toFixed(0) + 'M' : 'N/A'}
 
 Comparing these multiples against the current commodity price of ${priceStr} (Source: ${commodityPrice.source}), the asset appears ${score > 65 ? 'attractively' : 'moderately'} valued relative to the peer universe I track.
 
