@@ -3,6 +3,8 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const axios = require('axios');
+const pdfjsLib = require('pdfjs-dist');
+try { pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.js'); } catch(e) {}
 const { findMine, getAllMines } = require('./data/mines');
 const { getMineralPotential, getCommodityPrice } = require('./data/minerals');
 const { getPeerAverage, getPeersByCommodity } = require('./data/peers');
@@ -397,23 +399,63 @@ app.get('/api/mines', (req, res) => {
   res.json({ mines: getAllMines().map(m => ({ name: m.name, company: m.company, province: m.province, commodity: m.commodity, status: m.status })) });
 });
 
+function parseMineText(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const rows = [];
+  let current = {};
+
+  for (const line of lines) {
+    const l = line.trim();
+
+    const kvMatch = l.match(/^[•\-*]?\s*(.+?)\s*[:=]\s*(.+)$/);
+    if (kvMatch) {
+      const key = kvMatch[1].trim().toLowerCase().replace(/\s+/g, '_');
+      let val = kvMatch[2].trim();
+      const num = parseFloat(val.replace(/[,$]/g, ''));
+      if (!isNaN(num) && val.replace(/[,$]/g, '').match(/^\d+\.?\d*/)) val = num;
+      current[key] = val;
+      continue;
+    }
+
+    if (l.includes(',') && l.split(',').length >= 3) {
+      rows.push(l);
+    }
+  }
+
+  if (Object.keys(current).length >= 3) {
+    return [current];
+  }
+
+  if (rows.length >= 2) {
+    const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+    const result = [];
+    for (let i = 1; i < rows.length; i++) {
+      const vals = rows[i].split(',').map(v => v.trim());
+      if (vals.length < 2) continue;
+      const row = {};
+      headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+      result.push(row);
+    }
+    return result;
+  }
+
+  return [];
+}
+
 app.post('/api/upload/parse', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     let raw = '';
-    if (isVercel) {
-      raw = req.file.buffer.toString('utf-8');
-    } else {
-      raw = require('fs').readFileSync(req.file.path, 'utf-8');
-    }
-
+    const buffer = isVercel ? req.file.buffer : require('fs').readFileSync(req.file.path);
     const ext = path.extname(req.file.originalname).toLowerCase();
     let records = [];
 
     if (ext === '.json') {
+      raw = buffer.toString('utf-8');
       const parsed = JSON.parse(raw);
       records = Array.isArray(parsed) ? parsed : (parsed.mines || [parsed]);
     } else if (ext === '.csv' || ext === '.txt') {
+      raw = buffer.toString('utf-8');
       const lines = raw.split(/\r?\n/).filter(l => l.trim());
       if (lines.length < 2) throw new Error('CSV must have a header row and at least one data row');
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
@@ -424,36 +466,60 @@ app.post('/api/upload/parse', upload.single('file'), async (req, res) => {
         headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
         records.push(row);
       }
+    } else if (ext === '.pdf') {
+      const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+      const textPages = [];
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const content = await page.getTextContent();
+        const lines = [];
+        let lastY = null;
+        for (const item of content.items) {
+          const y = item.transform ? item.transform[5] : 0;
+          if (lastY !== null && Math.abs(y - lastY) > 1) lines.push('\n');
+          lines.push(item.str);
+          lastY = y;
+        }
+        textPages.push(lines.join(''));
+      }
+      const text = textPages.join('\n');
+      if (!text.trim()) throw new Error('Could not extract text from PDF');
+      records = parseMineText(text);
+      if (records.length === 0) {
+        records = [{ description: text.substring(0, 2000), name: req.file.originalname.replace('.pdf', '') }];
+      }
     } else {
-      return res.status(400).json({ error: 'Unsupported file format. Use .csv or .json' });
+      return res.status(400).json({ error: 'Unsupported file format. Use .csv, .json, or .pdf' });
     }
 
     const mines = records.map(r => ({
-      name: r.name || r.mine_name || r.mine || 'Unknown',
-      company: r.company || '',
-      province: r.province || '',
-      regency: r.regency || r.kabupaten || '',
-      commodity: r.commodity || '',
-      status: r.status || 'Under Review',
-      validity: r.validity || r.iup_validity || 'Under Review',
-      iupNumber: r.iup_number || r.iup || '',
-      resourceMt: parseFloat(r.resource_mt || r.resource || r.resources || 0),
-      reserveMt: parseFloat(r.reserve_mt || r.reserve || r.reserves || 0),
-      srRatio: parseFloat(r.sr_ratio || r.sr || r.stripping_ratio || 5),
-      distanceFromPort: parseFloat(r.distance_from_port || r.distance_port || r.distance || 50),
-      latitude: parseFloat(r.latitude || r.lat || 0),
-      longitude: parseFloat(r.longitude || r.lng || r.lon || 0),
-      elevation: parseFloat(r.elevation || 100),
-      areaHa: parseFloat(r.area_ha || r.area || 0),
-      gradeNi: parseFloat(r.grade_ni || r.ni_grade || 0),
-      gradeAu_gpt: parseFloat(r.grade_au || r.au_grade || 0),
-      gradeCu_pct: parseFloat(r.grade_cu || r.cu_grade || 0),
-      calorificValue_kcal: parseFloat(r.calorific_value || r.kcal || 0),
-      description: r.description || '',
-      infrastructure: (r.infrastructure || '').split(';').map(s => s.trim()).filter(Boolean)
+      name: r.name || r.mine_name || r.mine || r.nama_tambang || r.project || 'Unknown',
+      company: r.company || r.perusahaan || r.operator || '',
+      province: r.province || r.provinsi || '',
+      regency: r.regency || r.kabupaten || r.kota || '',
+      commodity: r.commodity || r.komoditas || r.comodity || r.mineral || '',
+      status: r.status || r.iup_status || 'Under Review',
+      validity: r.validity || r.iup_validity || r.status_iup || 'Under Review',
+      iupNumber: r.iup_number || r.iup || r.no_iup || r.iup_no || '',
+      resourceMt: parseFloat(r.resource_mt || r.resource || r.resources || r.sumberdaya || r.total_resource || 0),
+      reserveMt: parseFloat(r.reserve_mt || r.reserve || r.reserves || r.cadangan || r.total_reserve || 0),
+      srRatio: parseFloat(r.sr_ratio || r.sr || r.stripping_ratio || r.nisbah_kupas || 5),
+      distanceFromPort: parseFloat(r.distance_from_port || r.distance_port || r.distance || r.jarak_pelabuhan || 50),
+      latitude: parseFloat(r.latitude || r.lat || r.lintang || 0),
+      longitude: parseFloat(r.longitude || r.lng || r.lon || r.bujur || 0),
+      elevation: parseFloat(r.elevation || r.elevasi || r.ketinggian || 100),
+      areaHa: parseFloat(r.area_ha || r.area || r.luas || 0),
+      gradeNi: parseFloat(r.grade_ni || r.ni_grade || r.kadar_ni || 0),
+      gradeAu_gpt: parseFloat(r.grade_au || r.au_grade || r.kadar_au || 0),
+      gradeCu_pct: parseFloat(r.grade_cu || r.cu_grade || r.kadar_cu || 0),
+      gradeAg_gpt: parseFloat(r.grade_ag || r.ag_grade || r.kadar_ag || 0),
+      sulfur_pct: parseFloat(r.sulfur || r.sulfur_pct || r.kadar_s || 0),
+      calorificValue_kcal: parseFloat(r.calorific_value || r.kcal || r.nilai_kalori || 0),
+      description: r.description || r.deskripsi || r.notes || '',
+      infrastructure: (r.infrastructure || r.infra || r.infrastruktur || '').split(/[;,]/).map(s => s.trim()).filter(Boolean)
     }));
 
-    res.json({ success: true, count: mines.length, mines });
+    res.json({ success: true, count: mines.length, mines, source: ext === '.pdf' ? 'pdf' : 'file' });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
