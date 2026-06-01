@@ -1,9 +1,10 @@
 let lastResult = null;
+let providersCache = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
   loadMineList();
-  checkApiStatus();
+  loadProviders();
 });
 
 function initTabs() {
@@ -62,13 +63,112 @@ async function loadMineList() {
   } catch (e) { console.error('Failed to load mine list', e); }
 }
 
-async function checkApiStatus() {
+async function loadProviders() {
   try {
-    const resp = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mineName: 'check' }) });
-    const statusEl = document.getElementById('deepseekStatus');
-  } catch(e) {}
-  const statusEl = document.getElementById('deepseekStatus');
-  statusEl.innerHTML = '<span class="dot green"></span> AI: Connected';
+    const resp = await fetch('/api/ai/providers');
+    const data = await resp.json();
+    providersCache = data;
+    updateProviderStatus(data);
+  } catch(e) { console.error('Failed to load providers', e); }
+}
+
+function updateProviderStatus(data) {
+  const el = document.getElementById('aiProviderStatus');
+  if (!data || !data.providers) { el.innerHTML = '<span class="dot yellow"></span> AI: Local Analysis'; return; }
+  const active = data.providers.find(p => p.active);
+  const configured = data.providers.filter(p => p.configured);
+  if (configured.length === 0) {
+    el.innerHTML = '<span class="dot yellow"></span> AI: Local Analysis';
+  } else if (active && active.configured) {
+    el.innerHTML = `<span class="dot green"></span> AI: ${active.name}`;
+  } else {
+    el.innerHTML = `<span class="dot yellow"></span> AI: ${active ? active.name + ' (no key)' : 'Local'}`;
+  }
+}
+
+function toggleSettings() {
+  const modal = document.getElementById('settingsModal');
+  modal.classList.toggle('active');
+  if (modal.classList.contains('active')) renderProviderSettings();
+}
+
+async function renderProviderSettings() {
+  const el = document.getElementById('providersList');
+  let providers = providersCache?.providers;
+  if (!providers) {
+    const resp = await fetch('/api/ai/providers');
+    const data = await resp.json();
+    providersCache = data;
+    providers = data.providers;
+  }
+  el.innerHTML = providers.map(p => `
+    <div class="provider-card ${p.active ? 'active' : ''}" id="pcard-${p.id}">
+      <div class="pheader">
+        <div class="pname">
+          ${p.id === 'deepseek' ? '🧠' : '🔮'} ${p.name}
+          ${p.active ? '<span class="badge badge-success">Active</span>' : ''}
+          ${p.configured ? '<span class="badge badge-info">Key Set</span>' : '<span class="badge badge-warning">No Key</span>'}
+        </div>
+        <div class="pmodels">${p.models.join(', ')}</div>
+      </div>
+      <div class="pkey">
+        <input type="password" id="key-${p.id}" placeholder="${p.configured ? 'API key saved (enter to change)' : 'Enter ' + p.name + ' API key...'}" value="">
+        <button class="btn btn-small btn-primary" onclick="saveKey('${p.id}')">Save</button>
+      </div>
+      <div class="pactions">
+        <button class="btn btn-small btn-secondary" onclick="testProvider('${p.id}')">🔌 Test Connection</button>
+        <button class="btn btn-small ${p.active ? 'btn-accent' : 'btn-secondary'}" onclick="setActive('${p.id}')">${p.active ? '✓ Active' : 'Set Active'}</button>
+        <a href="${p.docsUrl}" target="_blank" class="btn btn-small btn-secondary" style="text-decoration:none;">📄 Get Key</a>
+      </div>
+      <div id="testResult-${p.id}"></div>
+    </div>
+  `).join('');
+}
+
+async function saveKey(provider) {
+  const input = document.getElementById('key-' + provider);
+  const key = input.value.trim();
+  if (!key) return;
+  const resp = await fetch('/api/ai/configure', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, apiKey: key, setActive: true })
+  });
+  const data = await resp.json();
+  providersCache = data;
+  updateProviderStatus(data);
+  renderProviderSettings();
+  input.value = '';
+}
+
+async function setActive(provider) {
+  const resp = await fetch('/api/ai/configure', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, setActive: true })
+  });
+  const data = await resp.json();
+  providersCache = data;
+  updateProviderStatus(data);
+  renderProviderSettings();
+}
+
+async function testProvider(provider) {
+  const el = document.getElementById('testResult-' + provider);
+  el.innerHTML = '<div class="test-result pending">⏳ Testing connection...</div>';
+  const resp = await fetch('/api/ai/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider })
+  });
+  const data = await resp.json();
+  if (data.success) {
+    el.innerHTML = `<div class="test-result success">✅ Connected to ${data.provider} (${data.model})</div>`;
+  } else if (data.status === 'no_key') {
+    el.innerHTML = `<div class="test-result error">⚠️ No API key configured. Enter a key and try again.</div>`;
+  } else {
+    el.innerHTML = `<div class="test-result error">❌ Connection failed: ${data.error}</div>`;
+  }
 }
 
 function clearForm() {
@@ -521,15 +621,20 @@ function renderRecommendation(recommendation) {
 
 function renderAIChat() {
   const el = document.getElementById('tab-ai');
+  const activeProvider = providersCache?.providers?.find(p => p.active);
+  const providerName = activeProvider?.configured ? activeProvider.name : 'Local';
+  const statusClass = activeProvider?.configured ? 'connected' : 'disconnected';
+  const statusText = activeProvider?.configured ? `● ${activeProvider.name} Connected` : '● API Key Required';
+
   el.innerHTML = `
     <div class="card deepseek-section">
       <div class="card-header">
-        <h3>🤖 DeepSeek AI Assistant — Mining Analyst</h3>
-        <span id="dsApiStatus" class="api-badge disconnected">● Checking...</span>
+        <h3>🤖 AI Mining Analyst — ${providerName}</h3>
+        <span id="aiApiStatus" class="api-badge ${statusClass}">${statusText}</span>
       </div>
       <div class="card-body">
         <p style="color:var(--text-light);margin-bottom:1rem;font-size:0.9rem;">
-          Ask follow-up questions about this mining asset. The AI has the full analysis context.
+          Ask follow-up questions about this mining asset. ${!activeProvider?.configured ? '<br><a href="#" onclick="toggleSettings();return false;" style="color:var(--primary-light);">⚙️ Configure an AI provider</a> for AI-powered analysis.' : ''}
         </p>
         <div class="deepseek-chat">
           <div class="chat-msgs" id="chatMsgs">
@@ -543,28 +648,6 @@ function renderAIChat() {
       </div>
     </div>
   `;
-  checkDeepSeekStatus();
-}
-
-async function checkDeepSeekStatus() {
-  const badge = document.getElementById('dsApiStatus');
-  try {
-    const resp = await fetch('/api/deepseek-query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'ping' })
-    });
-    if (resp.ok) {
-      badge.className = 'api-badge connected';
-      badge.innerHTML = '● DeepSeek Connected';
-    } else {
-      badge.className = 'api-badge disconnected';
-      badge.innerHTML = '● API Key Required';
-    }
-  } catch(e) {
-    badge.className = 'api-badge disconnected';
-    badge.innerHTML = '● API Key Required';
-  }
 }
 
 async function sendChatMsg() {
@@ -579,7 +662,7 @@ async function sendChatMsg() {
   msgs.scrollTop = msgs.scrollHeight;
 
   try {
-    const resp = await fetch('/api/deepseek-query', {
+    const resp = await fetch('/api/ai/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -588,7 +671,8 @@ async function sendChatMsg() {
 Context - ESDM Status: ${lastResult.esdm.status}, Validity: ${lastResult.esdm.validity}
 Resources: ${lastResult.mine.resourceMt}Mt, Reserves: ${lastResult.mine.reserveMt}Mt
 Total Cost: $${lastResult.cost.totalCostPerTonneUSD}/tonne, SR: ${lastResult.cost.strippingRatio}:1
-Peer Avg Margin: ${lastResult.peerComparison?.avgMarginPct?.toFixed(0)}%`
+Peer Avg Margin: ${lastResult.peerComparison?.avgMarginPct?.toFixed(0)}%`,
+        systemPrompt: 'You are a Senior Mining Geologist and Investment Analyst specializing in Indonesian mineral deposits.'
       })
     });
     const data = await resp.json();

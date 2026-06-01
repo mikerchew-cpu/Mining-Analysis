@@ -11,8 +11,9 @@
   <div class="header">
     <h1>⛏ Mine Analysis & Investment System <span>BETA</span></h1>
     <div class="header-status">
-      <span id="deepseekStatus"><span class="dot yellow"></span> AI: Local Analysis</span>
+      <span id="aiProviderStatus"><span class="dot yellow"></span> AI: Local Analysis</span>
       <span style="font-size:0.8rem;opacity:0.7;">ESDM · Geol · Cost · Peers</span>
+      <button class="btn" style="padding:0.4rem 0.8rem;font-size:0.8rem;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:6px;" onclick="toggleSettings()">⚙️ Settings</button>
     </div>
   </div>
 
@@ -120,6 +121,22 @@
       <div class="tab-content" id="tab-valuation"></div>
       <div class="tab-content" id="tab-recommendation"></div>
       <div class="tab-content" id="tab-ai"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)toggleSettings()">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>⚙️ AI Provider Settings</h3>
+        <button class="modal-close" onclick="toggleSettings()">✕</button>
+      </div>
+      <div class="modal-body" id="settingsBody">
+        <p style="color:var(--text-light);margin-bottom:1rem;">Configure AI providers for mine analysis. API keys are stored in memory for this session.</p>
+        <div id="providersList"></div>
+      </div>
+      <div class="modal-footer">
+        <span style="font-size:0.8rem;color:var(--text-light);">Keys are saved for the session. Set via <code>.env</code> for persistence.</span>
+      </div>
     </div>
   </div>
 

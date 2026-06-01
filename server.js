@@ -6,6 +6,7 @@ const axios = require('axios');
 const { findMine, getAllMines } = require('./data/mines');
 const { getMineralPotential, getCommodityPrice } = require('./data/minerals');
 const { getPeerAverage, getPeersByCommodity } = require('./data/peers');
+const aiProvider = require('./services/aiProvider');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -100,40 +101,15 @@ function calculateValuation(mine, peerAvg) {
   };
 }
 
-async function getDeepSeekAnalysis(mineData, esdmData, mineralData, costData, peerData, valuationData) {
-  if (!DEEPSEEK_API_KEY) {
-    return getLocalRecommendation(mineData, esdmData, mineralData, costData, peerData, valuationData);
-  }
+const VALE_SYSTEM_PROMPT = 'You are a Senior Geologist with 30 years of experience at PT Vale Indonesia (formerly PT Inco). You have been with the company since the early Sorowako days. You are an expert in Indonesian mineral deposits, particularly nickel laterites, porphyry copper-gold systems, and coal deposits. Your analysis is thorough, data-driven, and reflects decades of field experience across the Indonesian archipelago. You write in a professional, authoritative tone with specific technical details. Always provide clear investment recommendations: Strong Buy, Buy, Hold, or Sell.';
 
+async function getDeepSeekAnalysis(mineData, esdmData, mineralData, costData, peerData, valuationData) {
   const prompt = generateValePrompt(mineData, esdmData, mineralData, costData, peerData, valuationData);
 
-  try {
-    const response = await axios.post(DEEPSEEK_API_URL, {
-      model: "deepseek-chat",
-      messages: [
-        {
-          role: "system",
-          content: "You are a Senior Geologist with 30 years of experience at PT Vale Indonesia (formerly PT Inco). You have been with the company since the early Sorowako days. You are an expert in Indonesian mineral deposits, particularly nickel laterites, porphyry copper-gold systems, and coal deposits. Your analysis is thorough, data-driven, and reflects decades of field experience across the Indonesian archipelago. You write in a professional, authoritative tone with specific technical details. Always provide clear investment recommendations: Strong Buy, Buy, Hold, or Sell."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      max_tokens: 2048,
-      temperature: 0.7
-    }, {
-      headers: {
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  const result = await aiProvider.callAI(prompt, VALE_SYSTEM_PROMPT);
+  if (result) return result;
 
-    return response.data.choices[0].message.content;
-  } catch (error) {
-    console.error('DeepSeek API error:', error.message);
-    return getLocalRecommendation(mineData, esdmData, mineralData, costData, peerData, valuationData);
-  }
+  return getLocalRecommendation(mineData, esdmData, mineralData, costData, peerData, valuationData);
 }
 
 function generateValePrompt(mine, esdm, mineral, cost, peer, valuation) {
@@ -421,41 +397,51 @@ app.get('/api/mines', (req, res) => {
   res.json({ mines: getAllMines().map(m => ({ name: m.name, company: m.company, province: m.province, commodity: m.commodity, status: m.status })) });
 });
 
-app.post('/api/deepseek-query', async (req, res) => {
-  if (!DEEPSEEK_API_KEY) {
-    return res.status(400).json({ error: 'DeepSeek API key not configured. Set DEEPSEEK_API_KEY in .env file.' });
-  }
-
+app.post('/api/ai/query', async (req, res) => {
   try {
-    const { message } = req.body;
-    const response = await axios.post(DEEPSEEK_API_URL, {
-      model: "deepseek-chat",
-      messages: [
-        {
-          role: "system",
-          content: "You are a Senior Mining Geologist and Investment Analyst specializing in Indonesian mineral deposits."
-        },
-        { role: "user", content: message }
-      ],
-      max_tokens: 1500,
-      temperature: 0.7
-    }, {
-      headers: {
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    res.json({ response: response.data.choices[0].message.content });
+    const { message, systemPrompt } = req.body;
+    const result = await aiProvider.callAI(message, systemPrompt || 'You are a Senior Mining Geologist and Investment Analyst specializing in Indonesian mineral deposits.', { maxTokens: 1500 });
+    if (result) {
+      res.json({ response: result, provider: aiProvider.getActiveProvider() });
+    } else {
+      res.status(400).json({ error: 'No AI provider configured. Add an API key in Settings.', provider: aiProvider.getActiveProvider() });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/ai/providers', (req, res) => {
+  res.json({ providers: aiProvider.getProviders(), activeProvider: aiProvider.getActiveProvider() });
+});
+
+app.post('/api/ai/configure', (req, res) => {
+  try {
+    const { provider, apiKey, setActive } = req.body;
+    if (provider && apiKey) aiProvider.setApiKey(provider, apiKey);
+    if (setActive && provider) aiProvider.setActiveProvider(provider);
+    res.json({ success: true, providers: aiProvider.getProviders(), activeProvider: aiProvider.getActiveProvider() });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/ai/test', async (req, res) => {
+  try {
+    const { provider, model } = req.body;
+    const result = await aiProvider.testConnection(provider, model);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 
 if (!isVercel) {
   app.listen(PORT, () => {
     console.log(`Mine Analysis App running on http://localhost:${PORT}`);
-    console.log(`DeepSeek API: ${DEEPSEEK_API_KEY ? 'Configured' : 'NOT configured (using local analysis)'}`);
+    const providers = aiProvider.getProviders();
+    const active = providers.find(p => p.active);
+    console.log(`AI: ${providers.filter(p => p.configured).length} provider(s) configured · Active: ${active ? active.name : 'none (using local analysis)'}`);
   });
 }
 
