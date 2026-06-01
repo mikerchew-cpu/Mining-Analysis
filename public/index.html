@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mine Analysis System — ESDM · Mineral Potential · Cost · Investment</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛏️</text></svg>">
+</head>
+<body>
+  <div class="header">
+    <h1>⛏ Mine Analysis & Investment System <span>BETA</span></h1>
+    <div class="header-status">
+      <span id="deepseekStatus"><span class="dot yellow"></span> AI: Local Analysis</span>
+      <span style="font-size:0.8rem;opacity:0.7;">ESDM · Geol · Cost · Peers</span>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="input-section">
+      <h2>Mine Data Input</h2>
+      <div class="tabs">
+        <div class="tab active" data-tab="quick">Quick Search</div>
+        <div class="tab" data-tab="manual">Manual Entry</div>
+        <div class="tab" data-tab="browse">Browse Mines</div>
+      </div>
+
+      <div class="tab-content active" id="tab-quick">
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/-1;">
+            <label>Mine Name or IUP Number</label>
+            <input type="text" id="mineName" placeholder="e.g., Sorowako, Grasberg, Wedabay, Sangatta, or IUP number" list="mineList">
+            <datalist id="mineList"></datalist>
+          </div>
+          <div class="form-group">
+            <label>Company (override)</label>
+            <input type="text" id="qCompany" placeholder="Optional">
+          </div>
+          <div class="form-group">
+            <label>Province (override)</label>
+            <input type="text" id="qProvince" placeholder="Optional">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" onclick="analyzeMine()">🔍 Analyze Mine</button>
+          <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-manual">
+        <div class="form-grid">
+          <div class="form-group"><label>Mine Name *</label><input type="text" id="mName" placeholder="Mine name"></div>
+          <div class="form-group"><label>Commodity *</label>
+            <select id="mCommodity">
+              <option value="">Select...</option>
+              <option>Nickel Laterite</option>
+              <option>Gold</option>
+              <option>Copper</option>
+              <option>Coal (Thermal)</option>
+              <option>Silver</option>
+              <option>Cobalt</option>
+              <option>Bauxite</option>
+              <option>Iron Ore</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Province</label><input type="text" id="mProvince" placeholder="e.g., Sulawesi Selatan"></div>
+          <div class="form-group"><label>Regency</label><input type="text" id="mRegency" placeholder="e.g., Luwu Timur"></div>
+          <div class="form-group"><label>Status</label>
+            <select id="mStatus"><option>Active</option><option>Exploration</option><option>Care & Maintenance</option><option>Closed</option><option>Under Review</option></select>
+          </div>
+          <div class="form-group"><label>IUP Validity</label>
+            <select id="mValidity"><option>Valid</option><option>Under Review</option><option>Expired</option></select>
+          </div>
+          <div class="form-group"><label>Resources (Mt)</label><input type="number" id="mResource" step="0.1" placeholder="e.g., 150"></div>
+          <div class="form-group"><label>Reserves (Mt)</label><input type="number" id="mReserve" step="0.1" placeholder="e.g., 60"></div>
+          <div class="form-group"><label>Stripping Ratio</label><input type="number" id="mSR" step="0.1" value="5.0"></div>
+          <div class="form-group"><label>Distance to Port (km)</label><input type="number" id="mDist" value="50"></div>
+          <div class="form-group" style="grid-column:1/-1;"><label>Description</label><textarea id="mDesc" placeholder="Brief description of the mine"></textarea></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" onclick="analyzeManual()">🔍 Analyze</button>
+          <button class="btn btn-secondary" onclick="clearManual()">Clear</button>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-browse">
+        <p style="color:var(--text-light);margin-bottom:1rem;">Select a mine from the database to analyze:</p>
+        <div id="browseList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;"></div>
+      </div>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p style="color:var(--text-light);">Running comprehensive analysis...<br><span style="font-size:0.85rem;">ESDM verification · Geological assessment · Cost modeling · Peer comparison · AI recommendation</span></p>
+    </div>
+
+    <div class="results-section" id="results">
+      <div class="recommendation-box" id="recBox">
+        <h2>Executive Recommendation</h2>
+        <div class="rating" id="recRating">—</div>
+        <div style="opacity:0.9;font-size:0.9rem;" id="recSubtitle">PT Vale Indonesia — Senior Geologist Analysis</div>
+      </div>
+
+      <div class="dashboard-grid" id="statsGrid"></div>
+
+      <div class="tabs" id="resultTabs">
+        <div class="tab active" data-tab="esdm">ESDM & Mine Info</div>
+        <div class="tab" data-tab="mineral">Mineral Potential</div>
+        <div class="tab" data-tab="cost">Cost Analysis</div>
+        <div class="tab" data-tab="peers">Peer Comparison</div>
+        <div class="tab" data-tab="valuation">Valuation</div>
+        <div class="tab" data-tab="recommendation">Full Report</div>
+        <div class="tab" data-tab="ai">AI Chat</div>
+      </div>
+
+      <div class="tab-content active" id="tab-esdm"></div>
+      <div class="tab-content" id="tab-mineral"></div>
+      <div class="tab-content" id="tab-cost"></div>
+      <div class="tab-content" id="tab-peers"></div>
+      <div class="tab-content" id="tab-valuation"></div>
+      <div class="tab-content" id="tab-recommendation"></div>
+      <div class="tab-content" id="tab-ai"></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
