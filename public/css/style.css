@@ -181,6 +181,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .test-result.success { background: #d1fae5; color: #065f46; }
 .test-result.error { background: #fee2e2; color: #991b1b; }
 .test-result.pending { background: #fef3c7; color: #92400e; }
+.upload-zone {
+  border: 2px dashed var(--border); border-radius: 12px; padding: 2.5rem 2rem;
+  text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg);
+}
+.upload-zone:hover, .upload-zone.drag-over { border-color: var(--primary-light); background: #eff6ff; }
+.upload-zone .upload-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+.upload-zone .upload-text { font-size: 1rem; color: var(--text); margin-bottom: 0.25rem; }
+.upload-zone .upload-hint { font-size: 0.8rem; color: var(--text-light); }
+.preview-table-wrap { overflow-x: auto; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.preview-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.preview-table th { position: sticky; top: 0; background: var(--primary); color: white; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.preview-table td { padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); }
+.preview-table tr:hover td { background: #f9fafb; }
+.preview-table tr:nth-child(even) td { background: #f8fafc; }
 .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
 .tag-nickel { background: #dbeafe; color: #1e40af; }
 .tag-gold { background: #fef3c7; color: #92400e; }

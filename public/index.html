@@ -23,6 +23,7 @@
       <div class="tabs">
         <div class="tab active" data-tab="quick">Quick Search</div>
         <div class="tab" data-tab="manual">Manual Entry</div>
+        <div class="tab" data-tab="upload">Upload Data</div>
         <div class="tab" data-tab="browse">Browse Mines</div>
       </div>
 
@@ -82,6 +83,18 @@
           <button class="btn btn-primary" onclick="analyzeManual()">🔍 Analyze</button>
           <button class="btn btn-secondary" onclick="clearManual()">Clear</button>
         </div>
+      </div>
+
+      <div class="tab-content" id="tab-upload">
+        <p style="color:var(--text-light);margin-bottom:1rem;">Upload mine data file (.csv or .json) to analyze. <a href="#" onclick="downloadSampleCsv();return false;" style="color:var(--primary-light);">Download sample CSV</a></p>
+        <div class="upload-zone" id="uploadZone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event)">
+          <div class="upload-icon">📁</div>
+          <div class="upload-text">Drop your file here or <strong>browse</strong></div>
+          <div class="upload-hint">Supports .csv and .json files</div>
+          <input type="file" id="fileInput" accept=".csv,.json,.txt" onchange="handleFileSelect(event)" style="display:none">
+          <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()" style="margin-top:0.75rem;">Select File</button>
+        </div>
+        <div id="uploadPreview" style="display:none;margin-top:1rem;"></div>
       </div>
 
       <div class="tab-content" id="tab-browse">

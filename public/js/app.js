@@ -171,6 +171,125 @@ async function testProvider(provider) {
   }
 }
 
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag-over');
+  if (e.dataTransfer.files.length > 0) processUploadFile(e.dataTransfer.files[0]);
+}
+
+function handleFileSelect(e) {
+  if (e.target.files.length > 0) processUploadFile(e.target.files[0]);
+}
+
+async function processUploadFile(file) {
+  const zone = document.getElementById('uploadZone');
+  const preview = document.getElementById('uploadPreview');
+  zone.style.display = 'none';
+  preview.style.display = 'block';
+  preview.innerHTML = '<div class="test-result pending">⏳ Parsing file...</div>';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/api/upload/parse', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error);
+
+    if (data.count === 0) {
+      preview.innerHTML = '<div class="test-result error">No mine records found in file.</div>';
+      return;
+    }
+
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+      <span style="font-weight:600;">${data.count} mine(s) parsed from ${file.name}</span>
+      <span style="font-size:0.8rem;color:var(--text-light);">Select a mine to analyze:</span>
+    </div>
+    <div class="preview-table-wrap">
+    <table class="preview-table">
+      <thead><tr><th></th><th>Name</th><th>Company</th><th>Commodity</th><th>Province</th><th>Status</th><th>Resource (Mt)</th><th>Reserve (Mt)</th><th>SR</th></tr></thead>
+      <tbody>`;
+
+    data.mines.forEach((m, i) => {
+      html += `<tr onclick="analyzeUploadedMine(${i})" style="cursor:pointer;">
+        <td>${i + 1}</td>
+        <td><strong>${m.name}</strong></td>
+        <td style="font-size:0.8rem;">${m.company || '-'}</td>
+        <td><span class="tag ${getCommodityClass(m.commodity)}">${m.commodity || '-'}</span></td>
+        <td style="font-size:0.8rem;">${m.province || '-'}</td>
+        <td><span class="badge ${m.status === 'Active' ? 'badge-success' : 'badge-warning'}">${m.status}</span></td>
+        <td>${m.resourceMt || 0}</td>
+        <td>${m.reserveMt || 0}</td>
+        <td>${m.srRatio}:1</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>
+      <div style="margin-top:1rem;display:flex;gap:0.75rem;align-items:center;">
+        <button class="btn btn-secondary" onclick="resetUpload()">← Upload Different File</button>
+      </div>`;
+
+    preview.innerHTML = html;
+    window._uploadedMines = data.mines;
+  } catch (e) {
+    preview.innerHTML = `<div class="test-result error">❌ ${e.message}</div>
+      <div style="margin-top:0.75rem;"><button class="btn btn-secondary" onclick="resetUpload()">← Try Again</button></div>`;
+  }
+}
+
+function analyzeUploadedMine(index) {
+  const mines = window._uploadedMines;
+  if (!mines || !mines[index]) return;
+  const mine = mines[index];
+  const body = {
+    mineName: mine.name,
+    company: mine.company,
+    province: mine.province,
+    regency: mine.regency,
+    commodity: mine.commodity,
+    status: mine.status,
+    validity: mine.validity,
+    resourceMt: mine.resourceMt,
+    reserveMt: mine.reserveMt,
+    srRatio: mine.srRatio,
+    distanceFromPort: mine.distanceFromPort,
+    latitude: mine.latitude,
+    longitude: mine.longitude,
+    elevation: mine.elevation,
+    areaHa: mine.areaHa,
+    description: mine.description,
+    infrastructure: (mine.infrastructure || []).join(','),
+    gradeNi: mine.gradeNi,
+    gradeAu_gpt: mine.gradeAu_gpt,
+    gradeCu_pct: mine.gradeCu_pct,
+    calorificValue_kcal: mine.calorificValue_kcal
+  };
+  runAnalysis(body);
+}
+
+function resetUpload() {
+  document.getElementById('uploadZone').style.display = 'block';
+  document.getElementById('uploadPreview').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+  window._uploadedMines = null;
+}
+
+function downloadSampleCsv() {
+  const headers = 'name,company,province,regency,commodity,status,resource_mt,reserve_mt,sr_ratio,distance_from_port,grade_ni,grade_au,grade_cu,description';
+  const rows = [
+    'Bongkasa Pertamina,PT Bumi Mineral,Sulawesi Tenggara,Konawe Utara,Nickel Laterite,Exploration,35.2,12.8,7.5,42,1.62,,,Nickel laterite prospect in Southeast Sulawesi',
+    'Cibaliung Hulu,PT Aneka Tambang,Banten,Pandeglang,Gold,Active,2.8,1.2,4.8,85,,4.2,,Epithermal gold deposit in West Java',
+    'Kelian Equatorial,PT Kelian Equatorial Mining,Kalimantan Timur,Kutai Barat,Gold,Closed,18.5,0,6.2,120,,1.8,,Historic open-pit gold mine, now closed'
+  ];
+  const csv = headers + '\n' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sample_mine_data.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function clearForm() {
   document.getElementById('mineName').value = '';
   document.getElementById('qCompany').value = '';
