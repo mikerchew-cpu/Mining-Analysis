@@ -213,7 +213,7 @@ async function loadGems() {
 function renderGemSelect() {
   const sel = document.getElementById('gemSelect');
   if (!sel) return;
-  sel.innerHTML = gemsCache.map(g => `<option value="${g.id}">${g.name}${g.isDefault ? ' (Default)' : ''}</option>`).join('');
+  sel.innerHTML = gemsCache.map(g => `<option value="${g.id}">${g.name}${g.isDefault ? ' (Built-in)' : ''}</option>`).join('');
 }
 
 function renderGemsList() {
@@ -222,7 +222,7 @@ function renderGemsList() {
   el.innerHTML = gemsCache.map(g => `
     <div class="provider-card" style="margin-bottom:0.5rem;">
       <div class="pheader">
-        <div class="pname">${g.isDefault ? '⭐' : '🧠'} ${g.name} ${g.isDefault ? '<span class="badge badge-info">Default</span>' : ''}</div>
+        <div class="pname">${g.isDefault ? '⭐' : '🧠'} ${g.name} ${g.isDefault ? '<span class="badge badge-info">Built-in</span>' : ''}</div>
         <div class="pdetail" style="font-size:0.8rem;color:var(--text-light);">${g.description || 'No description'}</div>
       </div>
       <div class="pactions" style="margin-top:0.5rem;">
