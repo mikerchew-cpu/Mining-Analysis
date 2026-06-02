@@ -72,7 +72,7 @@ function renderBrowseMines(mines) {
     card.onclick = () => {
       document.getElementById('mineName').value = m.name;
       document.querySelector('[data-tab="quick"]').click();
-      analyzeMine();
+      searchMine();
     };
     browse.appendChild(card);
   });
@@ -406,8 +406,7 @@ function downloadSampleCsv() {
 
 function clearForm() {
   document.getElementById('mineName').value = '';
-  document.getElementById('qCompany').value = '';
-  document.getElementById('qProvince').value = '';
+  document.getElementById('searchResults').innerHTML = '';
 }
 
 function clearManual() {
@@ -419,17 +418,67 @@ function clearManual() {
   document.getElementById('mSR').value = '5.0';
 }
 
-async function analyzeMine() {
-  const mineName = document.getElementById('mineName').value.trim();
-  if (!mineName) { alert('Please enter a mine name'); return; }
-  const body = { mineName };
-  const qc = document.getElementById('qCompany').value.trim();
-  const qp = document.getElementById('qProvince').value.trim();
+function searchMine() {
+  const q = document.getElementById('mineName').value.trim().toLowerCase();
+  const resultsEl = document.getElementById('searchResults');
+  if (!q) { resultsEl.innerHTML = '<p style="color:var(--text-light);">Enter a mine name or IUP number to search.</p>'; return; }
+
+  const matches = allMines.filter(m =>
+    m.name.toLowerCase().includes(q) ||
+    (m.company || '').toLowerCase().includes(q) ||
+    (m.province || '').toLowerCase().includes(q) ||
+    (m.commodity || '').toLowerCase().includes(q) ||
+    (m.iupNumber || '').toLowerCase().includes(q)
+  );
+
+  if (matches.length === 0) {
+    resultsEl.innerHTML = `
+      <div class="card">
+        <div class="card-body" style="text-align:center;padding:1.5rem;">
+          <p style="color:var(--text-light);margin-bottom:1rem;">No mine found matching "<strong>${document.getElementById('mineName').value.trim()}</strong>" in the ESDM database.</p>
+          <button class="btn btn-primary" onclick="analyzeCustomMine()">📝 Analyze as Custom Mine</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  resultsEl.innerHTML = `
+    <p style="color:var(--text-light);margin-bottom:0.75rem;">Found <strong>${matches.length}</strong> mine(s) in ESDM database — click to analyze:</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0.75rem;">
+      ${matches.map(m => `
+        <div class="peer-card" style="cursor:pointer;" onclick="analyzeMineFromSearch('${m.id}', '${m.name.replace(/'/g, "\\'")}')">
+          <div style="display:flex;justify-content:space-between;align-items:start;">
+            <div>
+              <div class="pname" style="font-size:1rem;">${m.name}</div>
+              <div class="pdetail">${m.company || '-'} · <span class="tag ${getCommodityClass(m.commodity)}">${m.commodity || '-'}</span></div>
+            </div>
+            <span class="badge ${m.status === 'Active' ? 'badge-success' : m.status === 'Exploration' ? 'badge-info' : 'badge-warning'}">${m.status}</span>
+          </div>
+          <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-light);display:flex;gap:1rem;flex-wrap:wrap;">
+            <span>📍 ${m.province || '-'}</span>
+            <span>📦 ${m.resourceMt || 0}Mt / ${m.reserveMt || 0}Mt</span>
+            <span>⚖️ SR ${m.srRatio || '-'}:1</span>
+            ${m.iupNumber ? `<span>🆔 ${m.iupNumber}</span>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function analyzeMineFromSearch(id, name) {
   const gs = document.getElementById('gemSelect');
-  if (qc) body.company = qc;
-  if (qp) body.province = qp;
-  if (gs && gs.value) body.gemId = gs.value;
-  await runAnalysis(body);
+  const body = { mineName: name, gemId: gs && gs.value ? gs.value : '' };
+  runAnalysis(body);
+}
+
+function analyzeCustomMine() {
+  const name = document.getElementById('mineName').value.trim();
+  if (!name) { alert('Enter a mine name first'); return; }
+  const gs = document.getElementById('gemSelect');
+  const body = { mineName: name, gemId: gs && gs.value ? gs.value : '' };
+  runAnalysis(body);
 }
 
 async function analyzeManual() {

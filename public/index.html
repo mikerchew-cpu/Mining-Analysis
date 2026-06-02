@@ -30,17 +30,12 @@
       <div class="tab-content active" id="tab-quick">
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1;">
-            <label>Mine Name or IUP Number</label>
-            <input type="text" id="mineName" placeholder="e.g., Sorowako, Grasberg, Wedabay, Sangatta, or IUP number" list="mineList">
-            <datalist id="mineList"></datalist>
-          </div>
-          <div class="form-group">
-            <label>Company (override)</label>
-            <input type="text" id="qCompany" placeholder="Optional">
-          </div>
-          <div class="form-group">
-            <label>Province (override)</label>
-            <input type="text" id="qProvince" placeholder="Optional">
+            <label>Search Mine Name or IUP Number</label>
+            <div style="display:flex;gap:0.5rem;">
+              <input type="text" id="mineName" placeholder="e.g., Sorowako, Grasberg, Sangatta, or IUP number" list="mineList" style="flex:1;" onkeydown="if(event.key==='Enter') searchMine()">
+              <datalist id="mineList"></datalist>
+              <button class="btn btn-primary" onclick="searchMine()">🔍 Search</button>
+            </div>
           </div>
           <div class="form-group">
             <label>Analysis Persona (Gem)</label>
@@ -48,10 +43,7 @@
             <div style="font-size:0.75rem;color:var(--text-light);margin-top:0.25rem;">Coal · ESDM · Cost · Vale — create more in ⚙️ Settings</div>
           </div>
         </div>
-        <div class="form-actions">
-          <button class="btn btn-primary" onclick="analyzeMine()">🔍 Analyze Mine</button>
-          <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
-        </div>
+        <div id="searchResults" style="margin-top:1rem;"></div>
       </div>
 
       <div class="tab-content" id="tab-manual">
