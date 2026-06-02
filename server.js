@@ -9,6 +9,7 @@ const { findMine, getAllMines } = require('./data/mines');
 const { getMineralPotential, getCommodityPrice } = require('./data/minerals');
 const { getPeerAverage, getPeersByCommodity } = require('./data/peers');
 const aiProvider = require('./services/aiProvider');
+const esdmService = require('./services/esdmService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -336,28 +337,54 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
     let mine = mineData || findMine(mineName);
 
     if (!mine) {
-      mine = {
-        id: "ESDM-MANUAL-001",
-        name: mineName || "Unknown Mine",
-        company: req.body.company || "Unknown Company",
-        province: req.body.province || "Unknown Province",
-        regency: req.body.regency || "Unknown Regency",
-        latitude: parseFloat(req.body.latitude) || 0,
-        longitude: parseFloat(req.body.longitude) || 0,
-        status: req.body.status || "Under Review",
-        validity: req.body.validity || "Under Review",
-        iupNumber: req.body.iupNumber || "N/A",
-        expiryDate: req.body.expiryDate || "N/A",
-        areaHa: parseFloat(req.body.areaHa) || 0,
-        commodity: req.body.commodity || "Unknown",
-        resourceMt: parseFloat(req.body.resourceMt) || 0,
-        reserveMt: parseFloat(req.body.reserveMt) || 0,
-        srRatio: parseFloat(req.body.srRatio) || 5,
-        distanceFromPort: parseFloat(req.body.distanceFromPort) || 50,
-        elevation: parseFloat(req.body.elevation) || 100,
-        infrastructure: (req.body.infrastructure || "").split(",").map(s => s.trim()).filter(Boolean),
-        description: req.body.description || "Manual entry"
-      };
+      const esdmResults = await esdmService.searchMines(mineName);
+      if (esdmResults && esdmResults.length > 0) {
+        const esdmMine = esdmResults[0];
+        mine = {
+          id: esdmMine.id || "ESDM-LIVE-001",
+          name: esdmMine.name || mineName,
+          company: esdmMine.company || req.body.company || '',
+          province: esdmMine.province || req.body.province || '',
+          regency: esdmMine.regency || '',
+          latitude: 0, longitude: 0,
+          status: esdmMine.status || 'Under Review',
+          validity: esdmMine.validity || 'Under Review',
+          iupNumber: esdmMine.iupNumber || 'N/A',
+          expiryDate: esdmMine.expiryDate || 'N/A',
+          areaHa: esdmMine.areaHa || 0,
+          commodity: esdmMine.commodity || req.body.commodity || 'Unknown',
+          resourceMt: parseFloat(req.body.resourceMt) || 0,
+          reserveMt: parseFloat(req.body.reserveMt) || 0,
+          srRatio: parseFloat(req.body.srRatio) || 5,
+          distanceFromPort: parseFloat(req.body.distanceFromPort) || 50,
+          elevation: 100,
+          infrastructure: [],
+          description: esdmMine.description || `Data from ESDM WIUP - ${esdmMine.stage || 'N/A'}`
+        };
+      } else {
+        mine = {
+          id: "ESDM-MANUAL-001",
+          name: mineName || "Unknown Mine",
+          company: req.body.company || "Unknown Company",
+          province: req.body.province || "Unknown Province",
+          regency: req.body.regency || "Unknown Regency",
+          latitude: parseFloat(req.body.latitude) || 0,
+          longitude: parseFloat(req.body.longitude) || 0,
+          status: req.body.status || "Under Review",
+          validity: req.body.validity || "Under Review",
+          iupNumber: req.body.iupNumber || "N/A",
+          expiryDate: req.body.expiryDate || "N/A",
+          areaHa: parseFloat(req.body.areaHa) || 0,
+          commodity: req.body.commodity || "Unknown",
+          resourceMt: parseFloat(req.body.resourceMt) || 0,
+          reserveMt: parseFloat(req.body.reserveMt) || 0,
+          srRatio: parseFloat(req.body.srRatio) || 5,
+          distanceFromPort: parseFloat(req.body.distanceFromPort) || 50,
+          elevation: parseFloat(req.body.elevation) || 100,
+          infrastructure: (req.body.infrastructure || "").split(",").map(s => s.trim()).filter(Boolean),
+          description: req.body.description || "Manual entry"
+        };
+      }
     }
 
     const esdmData = {
@@ -399,7 +426,23 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
 });
 
 app.get('/api/mines', (req, res) => {
-  res.json({ mines: getAllMines().map(m => ({ id: m.id, name: m.name, company: m.company, province: m.province, regency: m.regency, commodity: m.commodity, status: m.status, iupNumber: m.iupNumber, resourceMt: m.resourceMt, reserveMt: m.reserveMt, srRatio: m.srRatio })) });
+  const staticMines = getAllMines().map(m => ({ ...m, source: 'static' }));
+  res.json({ mines: staticMines });
+});
+
+app.get('/api/esdm/search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ mines: [], source: 'esdm' });
+    const results = await esdmService.searchMines(q);
+    if (results) {
+      res.json({ mines: results, source: 'esdm' });
+    } else {
+      res.json({ mines: [], source: 'esdm', error: 'ESDM service unavailable' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 function parseMineText(text) {

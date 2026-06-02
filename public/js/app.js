@@ -418,24 +418,41 @@ function clearManual() {
   document.getElementById('mSR').value = '5.0';
 }
 
-function searchMine() {
-  const q = document.getElementById('mineName').value.trim().toLowerCase();
+async function searchMine() {
+  const q = document.getElementById('mineName').value.trim();
   const resultsEl = document.getElementById('searchResults');
   if (!q) { resultsEl.innerHTML = '<p style="color:var(--text-light);">Enter a mine name or IUP number to search.</p>'; return; }
 
-  const matches = allMines.filter(m =>
-    m.name.toLowerCase().includes(q) ||
-    (m.company || '').toLowerCase().includes(q) ||
-    (m.province || '').toLowerCase().includes(q) ||
-    (m.commodity || '').toLowerCase().includes(q) ||
-    (m.iupNumber || '').toLowerCase().includes(q)
-  );
+  resultsEl.innerHTML = '<div class="test-result pending">⏳ Searching ESDM database...</div>';
 
-  if (matches.length === 0) {
+  // Search live ESDM API first
+  let mines = [];
+  try {
+    const resp = await fetch('/api/esdm/search?q=' + encodeURIComponent(q));
+    const data = await resp.json();
+    if (data.mines && data.mines.length > 0) {
+      mines = data.mines;
+    }
+  } catch (e) { /* fallback to static */ }
+
+  // If no results from ESDM, search static database
+  if (mines.length === 0) {
+    const lq = q.toLowerCase();
+    mines = allMines.filter(m =>
+      m.name.toLowerCase().includes(lq) ||
+      (m.company || '').toLowerCase().includes(lq) ||
+      (m.province || '').toLowerCase().includes(lq) ||
+      (m.commodity || '').toLowerCase().includes(lq) ||
+      (m.iupNumber || '').toLowerCase().includes(lq)
+    );
+    mines = mines.map(m => ({ ...m, source: 'static' }));
+  }
+
+  if (mines.length === 0) {
     resultsEl.innerHTML = `
       <div class="card">
         <div class="card-body" style="text-align:center;padding:1.5rem;">
-          <p style="color:var(--text-light);margin-bottom:1rem;">No mine found matching "<strong>${document.getElementById('mineName').value.trim()}</strong>" in the ESDM database.</p>
+          <p style="color:var(--text-light);margin-bottom:1rem;">No mine found matching "<strong>${q}</strong>" in the ESDM database.</p>
           <button class="btn btn-primary" onclick="analyzeCustomMine()">📝 Analyze as Custom Mine</button>
         </div>
       </div>
@@ -443,11 +460,17 @@ function searchMine() {
     return;
   }
 
+  const sourceLabel = mines[0].source === 'esdm' ? 'ESDM WIUP Live Data' : 'Static Database';
+  const sourceBadge = mines[0].source === 'esdm' ? 'badge-info' : 'badge-warning';
+
   resultsEl.innerHTML = `
-    <p style="color:var(--text-light);margin-bottom:0.75rem;">Found <strong>${matches.length}</strong> mine(s) in ESDM database — click to analyze:</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+      <span style="color:var(--text-light);">Found <strong>${mines.length}</strong> mine(s) — click to analyze:</span>
+      <span class="badge ${sourceBadge}">${sourceLabel}</span>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0.75rem;">
-      ${matches.map(m => `
-        <div class="peer-card" style="cursor:pointer;" onclick="analyzeMineFromSearch('${m.id}', '${m.name.replace(/'/g, "\\'")}')">
+      ${mines.map(m => `
+        <div class="peer-card" style="cursor:pointer;" onclick="analyzeMineFromSearch('${(m.id || '').replace(/'/g, "\\'")}', '${(m.name || '').replace(/'/g, "\\'")}')">
           <div style="display:flex;justify-content:space-between;align-items:start;">
             <div>
               <div class="pname" style="font-size:1rem;">${m.name}</div>
@@ -457,10 +480,12 @@ function searchMine() {
           </div>
           <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-light);display:flex;gap:1rem;flex-wrap:wrap;">
             <span>📍 ${m.province || '-'}</span>
-            <span>📦 ${m.resourceMt || 0}Mt / ${m.reserveMt || 0}Mt</span>
-            <span>⚖️ SR ${m.srRatio || '-'}:1</span>
+            ${m.areaHa ? `<span>📐 ${m.areaHa.toLocaleString()} Ha</span>` : ''}
             ${m.iupNumber ? `<span>🆔 ${m.iupNumber}</span>` : ''}
+            ${m.licenseType ? `<span>📋 ${m.licenseType}</span>` : ''}
+            ${m.expiryDate ? `<span>⏳ ${m.expiryDate}</span>` : ''}
           </div>
+          ${m.source === 'esdm' ? '<div style="margin-top:0.4rem;font-size:0.7rem;color:var(--primary-light);">ESDM WIUP Live Data</div>' : ''}
         </div>
       `).join('')}
     </div>
