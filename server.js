@@ -399,7 +399,7 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
 });
 
 app.get('/api/mines', (req, res) => {
-  res.json({ mines: getAllMines().map(m => ({ name: m.name, company: m.company, province: m.province, commodity: m.commodity, status: m.status })) });
+  res.json({ mines: getAllMines().map(m => ({ id: m.id, name: m.name, company: m.company, province: m.province, regency: m.regency, commodity: m.commodity, status: m.status, iupNumber: m.iupNumber, resourceMt: m.resourceMt, reserveMt: m.reserveMt, srRatio: m.srRatio })) });
 });
 
 function parseMineText(text) {
