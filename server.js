@@ -105,13 +105,15 @@ function calculateValuation(mine, peerAvg) {
 
 const VALE_SYSTEM_PROMPT = 'You are a Senior Geologist with 30 years of experience at PT Vale Indonesia (formerly PT Inco). You have been with the company since the early Sorowako days. You are an expert in Indonesian mineral deposits, particularly nickel laterites, porphyry copper-gold systems, and coal deposits. Your analysis is thorough, data-driven, and reflects decades of field experience across the Indonesian archipelago. You write in a professional, authoritative tone with specific technical details. Always provide clear investment recommendations: Strong Buy, Buy, Hold, or Sell.';
 
-async function getDeepSeekAnalysis(mineData, esdmData, mineralData, costData, peerData, valuationData) {
+async function getDeepSeekAnalysis(mineData, esdmData, mineralData, costData, peerData, valuationData, gemId) {
   const prompt = generateValePrompt(mineData, esdmData, mineralData, costData, peerData, valuationData);
+  const gem = gemId ? getGemById(gemId) : null;
+  const systemPrompt = gem ? gem.systemPrompt : VALE_SYSTEM_PROMPT;
 
-  const result = await aiProvider.callAI(prompt, VALE_SYSTEM_PROMPT);
-  if (result) return result;
+  const result = await aiProvider.callAI(prompt, systemPrompt);
+  if (result) return { text: result, gemName: gem ? gem.name : 'Senior Vale Geologist' };
 
-  return getLocalRecommendation(mineData, esdmData, mineralData, costData, peerData, valuationData);
+  return { text: getLocalRecommendation(mineData, esdmData, mineralData, costData, peerData, valuationData), gemName: 'Local Engine' };
 }
 
 function generateValePrompt(mine, esdm, mineral, cost, peer, valuation) {
@@ -376,7 +378,8 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
     const peerData = getPeerAverage(mine.commodity);
     const valuationData = calculateValuation(mine, peerData);
 
-    const recommendation = await getDeepSeekAnalysis(mine, esdmData, mineralData, costData, peerData, valuationData);
+    const gemId = req.body.gemId || '';
+    const result = await getDeepSeekAnalysis(mine, esdmData, mineralData, costData, peerData, valuationData, gemId);
 
     res.json({
       success: true,
@@ -386,8 +389,8 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
       cost: costData,
       peerComparison: peerData,
       valuation: valuationData,
-      recommendation,
-      analyzedAt: new Date().toISOString()
+      recommendation: result.text,
+      gemName: result.gemName
     });
   } catch (error) {
     console.error('Analysis error:', error);
@@ -523,6 +526,62 @@ app.post('/api/upload/parse', upload.single('file'), async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+// ─── Gems (Custom AI Personas) ──────────────────────────────
+let gems = [
+  {
+    id: 'gem-vale',
+    name: 'Senior Vale Geologist',
+    description: 'Default analysis by a senior PT Vale geologist with 30 years experience',
+    systemPrompt: VALE_SYSTEM_PROMPT,
+    isDefault: true
+  }
+];
+let gemCounter = 1;
+
+function getGemById(id) {
+  return gems.find(g => g.id === id);
+}
+
+app.get('/api/gems', (req, res) => {
+  res.json({ gems });
+});
+
+app.post('/api/gems', (req, res) => {
+  try {
+    const { id, name, description, systemPrompt } = req.body;
+    if (!name || !systemPrompt) return res.status(400).json({ error: 'Name and system prompt required' });
+
+    if (id) {
+      const existing = getGemById(id);
+      if (!existing) return res.status(404).json({ error: 'Gem not found' });
+      existing.name = name;
+      existing.description = description || '';
+      existing.systemPrompt = systemPrompt;
+      res.json({ success: true, gem: existing, gems });
+    } else {
+      const newGem = {
+        id: 'gem-' + (++gemCounter),
+        name,
+        description: description || '',
+        systemPrompt,
+        isDefault: false
+      };
+      gems.push(newGem);
+      res.json({ success: true, gem: newGem, gems });
+    }
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.delete('/api/gems/:id', (req, res) => {
+  const gem = getGemById(req.params.id);
+  if (!gem) return res.status(404).json({ error: 'Gem not found' });
+  if (gem.isDefault) return res.status(400).json({ error: 'Cannot delete default gem' });
+  gems = gems.filter(g => g.id !== req.params.id);
+  res.json({ success: true, gems });
 });
 
 app.post('/api/ai/query', async (req, res) => {

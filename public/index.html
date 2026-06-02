@@ -42,6 +42,11 @@
             <label>Province (override)</label>
             <input type="text" id="qProvince" placeholder="Optional">
           </div>
+          <div class="form-group">
+            <label>Analysis Persona (Gem)</label>
+            <select id="gemSelect"></select>
+            <div style="font-size:0.75rem;color:var(--text-light);margin-top:0.25rem;">Create and manage gems in ⚙️ Settings</div>
+          </div>
         </div>
         <div class="form-actions">
           <button class="btn btn-primary" onclick="analyzeMine()">🔍 Analyze Mine</button>
@@ -150,8 +155,16 @@
       <div class="modal-body" id="settingsBody">
         <p style="color:var(--text-light);margin-bottom:1rem;">Configure AI providers for mine analysis. API keys are stored in memory for this session.</p>
         <div id="providersList"></div>
+        <hr style="border-color:var(--border);margin:1.5rem 0;">
+        <h3 style="margin-bottom:0.75rem;">🧠 Gems — Custom Analysis Personas</h3>
+        <p style="color:var(--text-light);margin-bottom:1rem;font-size:0.85rem;">Create custom AI personas (gems) with specific instructions for checking and analyzing mine data. Select one before running analysis.</p>
+        <div id="gemsList"></div>
+        <div style="margin-top:1rem;">
+          <button class="btn btn-secondary" onclick="showGemEditor()">+ New Gem</button>
+        </div>
+        <div id="gemEditor" style="display:none;margin-top:1rem;border:1px solid var(--border);border-radius:8px;padding:1rem;"></div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="flex-direction:column;gap:0.5rem;">
         <span style="font-size:0.8rem;color:var(--text-light);">Keys are saved for the session. Set via <code>.env</code> for persistence.</span>
       </div>
     </div>

@@ -1,10 +1,12 @@
 let lastResult = null;
 let providersCache = null;
+let gemsCache = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
   loadMineList();
   loadProviders();
+  loadGems();
 });
 
 function initTabs() {
@@ -126,6 +128,7 @@ async function renderProviderSettings() {
     providersCache = data;
     providers = data.providers;
   }
+  renderGemsList();
   el.innerHTML = providers.map(p => `
     <div class="provider-card ${p.active ? 'active' : ''}" id="pcard-${p.id}">
       <div class="pheader">
@@ -193,6 +196,90 @@ async function testProvider(provider) {
     el.innerHTML = `<div class="test-result error">⚠️ No API key configured. Enter a key and try again.</div>`;
   } else {
     el.innerHTML = `<div class="test-result error">❌ Connection failed: ${data.error}</div>`;
+  }
+}
+
+// ─── Gems (Custom Personas) ────────────────────────
+
+async function loadGems() {
+  try {
+    const resp = await fetch('/api/gems');
+    const data = await resp.json();
+    gemsCache = data.gems || [];
+    renderGemSelect();
+  } catch (e) { console.error('Failed to load gems', e); }
+}
+
+function renderGemSelect() {
+  const sel = document.getElementById('gemSelect');
+  if (!sel) return;
+  sel.innerHTML = gemsCache.map(g => `<option value="${g.id}">${g.name}${g.isDefault ? ' (Default)' : ''}</option>`).join('');
+}
+
+function renderGemsList() {
+  const el = document.getElementById('gemsList');
+  if (!el) return;
+  el.innerHTML = gemsCache.map(g => `
+    <div class="provider-card" style="margin-bottom:0.5rem;">
+      <div class="pheader">
+        <div class="pname">${g.isDefault ? '⭐' : '🧠'} ${g.name} ${g.isDefault ? '<span class="badge badge-info">Default</span>' : ''}</div>
+        <div class="pdetail" style="font-size:0.8rem;color:var(--text-light);">${g.description || 'No description'}</div>
+      </div>
+      <div class="pactions" style="margin-top:0.5rem;">
+        <button class="btn btn-small btn-secondary" onclick="showGemEditor('${g.id}')">✏️ Edit</button>
+        ${g.isDefault ? '' : `<button class="btn btn-small btn-danger" style="background:var(--danger);color:white;border:none;padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;" onclick="deleteGem('${g.id}')">🗑️ Delete</button>`}
+      </div>
+    </div>
+  `).join('');
+}
+
+function showGemEditor(id) {
+  const el = document.getElementById('gemEditor');
+  el.style.display = 'block';
+  const gem = id ? gemsCache.find(g => g.id === id) : null;
+  el.innerHTML = `
+    <h4 style="margin-bottom:0.75rem;">${gem ? '✏️ Edit' : '🧠 New'} Gem</h4>
+    <div class="form-group"><label>Name</label><input type="text" id="gemEditorName" value="${gem ? gem.name : ''}" placeholder="e.g., Nickel Specialist"></div>
+    <div class="form-group"><label>Description</label><input type="text" id="gemEditorDesc" value="${gem ? gem.description || '' : ''}" placeholder="What this gem does"></div>
+    <div class="form-group"><label>System Prompt / Instructions</label>
+      <textarea id="gemEditorPrompt" rows="6" placeholder="You are an expert in... Check for... Analyze by...">${gem ? gem.systemPrompt : ''}</textarea>
+    </div>
+    <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
+      <button class="btn btn-primary" onclick="saveGem('${gem ? gem.id : ''}')">💾 Save</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('gemEditor').style.display='none'">Cancel</button>
+    </div>
+  `;
+}
+
+async function saveGem(id) {
+  const name = document.getElementById('gemEditorName').value.trim();
+  const description = document.getElementById('gemEditorDesc').value.trim();
+  const systemPrompt = document.getElementById('gemEditorPrompt').value.trim();
+  if (!name || !systemPrompt) { alert('Name and instructions required'); return; }
+  const resp = await fetch('/api/gems', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id || undefined, name, description, systemPrompt })
+  });
+  const data = await resp.json();
+  if (data.success) {
+    gemsCache = data.gems;
+    renderGemSelect();
+    renderGemsList();
+    document.getElementById('gemEditor').style.display = 'none';
+  } else {
+    alert('Error: ' + (data.error || 'Unknown'));
+  }
+}
+
+async function deleteGem(id) {
+  if (!confirm('Delete this gem?')) return;
+  const resp = await fetch('/api/gems/' + id, { method: 'DELETE' });
+  const data = await resp.json();
+  if (data.success) {
+    gemsCache = data.gems;
+    renderGemSelect();
+    renderGemsList();
   }
 }
 
@@ -266,6 +353,7 @@ function analyzeUploadedMine(index) {
   const mines = window._uploadedMines;
   if (!mines || !mines[index]) return;
   const mine = mines[index];
+  const gs = document.getElementById('gemSelect');
   const body = {
     mineName: mine.name,
     company: mine.company,
@@ -287,7 +375,8 @@ function analyzeUploadedMine(index) {
     gradeNi: mine.gradeNi,
     gradeAu_gpt: mine.gradeAu_gpt,
     gradeCu_pct: mine.gradeCu_pct,
-    calorificValue_kcal: mine.calorificValue_kcal
+    calorificValue_kcal: mine.calorificValue_kcal,
+    gemId: gs && gs.value ? gs.value : ''
   };
   runAnalysis(body);
 }
@@ -336,12 +425,15 @@ async function analyzeMine() {
   const body = { mineName };
   const qc = document.getElementById('qCompany').value.trim();
   const qp = document.getElementById('qProvince').value.trim();
+  const gs = document.getElementById('gemSelect');
   if (qc) body.company = qc;
   if (qp) body.province = qp;
+  if (gs && gs.value) body.gemId = gs.value;
   await runAnalysis(body);
 }
 
 async function analyzeManual() {
+  const gs = document.getElementById('gemSelect');
   const body = {
     mineName: document.getElementById('mName').value.trim(),
     commodity: document.getElementById('mCommodity').value,
@@ -354,7 +446,8 @@ async function analyzeManual() {
     srRatio: document.getElementById('mSR').value,
     distanceFromPort: document.getElementById('mDist').value,
     description: document.getElementById('mDesc').value.trim(),
-    company: document.getElementById('qCompany').value.trim()
+    company: document.getElementById('qCompany').value.trim(),
+    gemId: gs && gs.value ? gs.value : ''
   };
   if (!body.mineName) { alert('Please enter a mine name'); return; }
   await runAnalysis(body);
@@ -396,7 +489,7 @@ function getCommodityClass(commodity) {
 }
 
 function renderResults(data) {
-  const { mine, esdm, mineral, cost, peerComparison, valuation, recommendation } = data;
+  const { mine, esdm, mineral, cost, peerComparison, valuation, recommendation, gemName } = data;
 
   const ratingMatch = recommendation.match(/\*\*Rating:\s*(.+?)\*\*/) || recommendation.match(/Verdict:\s*\*\*(.+?)\*\*/) || recommendation.match(/recommend a \*\*(.+?)\*\*/);
   const rating = ratingMatch ? ratingMatch[1].trim() : 'Hold';
@@ -416,7 +509,7 @@ function renderResults(data) {
   } else {
     recBox.style.background = 'linear-gradient(135deg, #991b1b, #ef4444)';
   }
-  subtitleEl.textContent = `Score: ${score}/100 · ${mine.name} · ${mine.commodity} · ${mine.province} · Senior Geologist PT Vale Indonesia`;
+  subtitleEl.textContent = `Score: ${score}/100 · ${mine.name} · ${mine.commodity} · ${mine.province} · ${gemName || 'Senior Geologist PT Vale Indonesia'}`;
 
   document.getElementById('statsGrid').innerHTML = `
     <div class="stat-card">
